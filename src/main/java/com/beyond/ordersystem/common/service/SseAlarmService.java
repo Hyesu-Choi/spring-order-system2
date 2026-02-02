@@ -20,6 +20,7 @@ public class SseAlarmService {
         this.objectMapper = objectMapper;
     }
 
+//    알림 메세지 보내기 로직
     public void sendMessage(String receiver, String sender, String message) {
         SseEmitter sseEmitter = sseEmitterRegistry.getEmitter(receiver);
 

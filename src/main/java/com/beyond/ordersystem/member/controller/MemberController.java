@@ -70,13 +70,13 @@ public class MemberController {
 //        rt 검증(1. 토큰 자체 검증, 2. redis 조회 검증)
         Member member = jwtTokenProvider.validateRt(dto.getRefreshToken());
 
-        //        at 신규 생성
+//        rt 검증 통과하면 at 신규 생성
         String accessToken = jwtTokenProvider.createToken(member);
-//        refresh 생성 및 저장
         MemberLoginResDto memberLoginResDto = MemberLoginResDto.builder()
                 .accessToken(accessToken)
                 .refreshToken(null)
                 .build();
+
         return ResponseEntity.status(HttpStatus.OK).body(memberLoginResDto);
 
     }

@@ -24,6 +24,7 @@ public class MemberService {
     private final MemberRepository memberRepository;
     private final PasswordEncoder passwordEncoder;
     private final S3Client s3Client;
+
     @Value("${aws.s3.bucket1}")
     private String bucket;
 

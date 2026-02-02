@@ -18,7 +18,7 @@ public class RedisConfig {
     @Value("${spring.redis.port}")
     private int port;
 
-    //    연결 빈 객체 : redis 연결 환경설정정보
+    //    연결 Bean 객체 : redis 연결 환경설정정보
     @Bean
 //    Qualifier : 같은 Bean 객체가 여러개 있을 경우 Bean 객체를 구분하기 위한 어노테이션
     @Qualifier("rtInventory")  // 빈 객체에 이름 붙이기
@@ -35,15 +35,17 @@ public class RedisConfig {
     public RedisConnectionFactory stockConnectionFactory() {
         RedisStandaloneConfiguration configuration = new RedisStandaloneConfiguration();
         configuration.setHostName(host);
-        configuration.setPort(port);  // 포트번호 yml에 관리
-        configuration.setDatabase(1);  // 몇번 db  쓸껀지
+        configuration.setPort(port);
+        configuration.setDatabase(1);
         return new LettuceConnectionFactory();
     }
 
-    //    템플릿 빈 객체 : value에 어떤 자료구조로 넣을지 자료구조 설계. controller같은데에서 쓸 떄 이 빈을 주입받아서 쓰면 됨
+
+    //    템플릿 Bean 객체 : value에 어떤 자료구조로 넣을지 자료구조 설계. controller같은데에서 쓸 떄 이 빈을 주입받아서 쓰면 됨
     @Bean
     @Qualifier("rtInventory")
 //    모든 template중에 무조건 redisTemplate이라는 메서드명이 반드시 1개는 있어야함.
+//    bean객체 생성시, bean 객체간에 DI(의존성주입)는 "메서드 파라미터 주입" 이 가능
     public RedisTemplate<String, String> redisTemplate(@Qualifier("rtInventory") RedisConnectionFactory redisConnectionFactory) {
         RedisTemplate<String, String> redisTemplate = new RedisTemplate<>();
         redisTemplate.setKeySerializer(new StringRedisSerializer());  // redis저장시 key는 string으로 만들어서 집어넣겠댜.
@@ -56,7 +58,7 @@ public class RedisConfig {
     @Qualifier("stockInventory")
     public RedisTemplate<String, String> stockRedisTemplate(@Qualifier("stockInventory") RedisConnectionFactory redisConnectionFactory) {
         RedisTemplate<String, String> redisTemplate = new RedisTemplate<>();
-        redisTemplate.setKeySerializer(new StringRedisSerializer());  // redis저장시 key는 string으로 만들어서 집어넣겠댜.
+        redisTemplate.setKeySerializer(new StringRedisSerializer());
         redisTemplate.setValueSerializer(new StringRedisSerializer());
         redisTemplate.setConnectionFactory(redisConnectionFactory);
         return redisTemplate;

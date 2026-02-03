@@ -35,22 +35,31 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity httpSecurity) throws Exception {
         return httpSecurity
-                .cors(c->c.configurationSource(corsConfigurationSource()))
+                .cors(c -> c.configurationSource(corsConfigurationSource()))
 //                csrf공격(일반적으로 쿠키를 활용한 공격)에 대한 방어 비활성화
                 .csrf(AbstractHttpConfigurer::disable)
 //                http basic은 email/pw를 인코딩하여 인증(전송)하는 간단한 인증방식. 비활성화.
                 .httpBasic(AbstractHttpConfigurer::disable)
 //                세션로그인방식 비활성화
-                .sessionManagement(a->a.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .sessionManagement(a -> a.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 //                token을 검증하고, Authentication객체 생성
                 .addFilterBefore(jwtTokenFilter, UsernamePasswordAuthenticationFilter.class)
-                .exceptionHandling(e->e.authenticationEntryPoint(jwtAuthenticationHandler))
+                .exceptionHandling(e -> e.authenticationEntryPoint(jwtAuthenticationHandler))
 //                지정한 특정 url을 제외한 모든 요청에 대해서 authenticated(인증처리)하겠다 라는 의미
-                .authorizeHttpRequests(a->a.requestMatchers("/member/create", "/member/doLogin", "/product/list", "/member/refresh-at").permitAll().anyRequest().authenticated())
+                .authorizeHttpRequests(a -> a.requestMatchers(
+                        "/member/create",
+                        "/member/doLogin",
+                        "/product/list",
+                        "/member/refresh-at",
+//                        swagger를 위한 인증예외처리
+                        "/v3/api-docs/**",
+                        "/swagger-ui/**",
+                        "/swagger-ui.html")
+                        .permitAll().anyRequest().authenticated())
                 .build();
     }
 
-    public CorsConfigurationSource corsConfigurationSource(){
+    public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 //        허용가능한 도메인 목록 설정
         configuration.setAllowedOrigins(Arrays.asList("http://localhost:3000", "https://www.bradkim.shop"));
@@ -67,7 +76,7 @@ public class SecurityConfig {
     }
 
     @Bean
-    public PasswordEncoder pwEncoder(){
+    public PasswordEncoder pwEncoder() {
         return PasswordEncoderFactories.createDelegatingPasswordEncoder();
     }
 

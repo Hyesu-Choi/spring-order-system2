@@ -22,7 +22,10 @@ public class SseEmitterRegistry {
 //    사용자 정보 조회
     public SseEmitter getEmitter(String email) {
         return this.emitterMap.get(email);
+    }
 
+    public void removeEmitter(String email) {
+        this.emitterMap.remove(email);
     }
 
 }

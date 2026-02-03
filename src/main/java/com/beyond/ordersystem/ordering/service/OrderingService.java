@@ -64,6 +64,8 @@ public class OrderingService {
 
 //        주문 성공시 admin 유저에게 알림메시지 전송 .. receiver 동적으로 설계
         String message = ordering.getId() + "번 주문이 들어왔습니다.";
+//        알림 DB저장 로직 추가 하면됨
+//        alarmRepository.save(alram객체) 이런식으로 db에 알림 저장하고, 메시지 보내기
         sseAlarmService.sendMessage("admin@naver.com", email, message);
 
 

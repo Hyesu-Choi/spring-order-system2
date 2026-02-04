@@ -7,16 +7,19 @@ import com.beyond.ordersystem.product.domain.Product;
 import com.beyond.ordersystem.product.dtos.ProductCreateDto;
 import com.beyond.ordersystem.product.dtos.ProductResDto;
 import com.beyond.ordersystem.product.dtos.ProductSearchDto;
+import com.beyond.ordersystem.product.dtos.ProductUpdateDto;
 import com.beyond.ordersystem.product.repository.ProductRepository;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,21 +39,23 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final MemberRepository memberRepository;
     private final S3Client s3Client;
+    private final RedisTemplate<String, String> redisTemplate;
     @Value("${aws.s3.bucket1}")
     private String bucket;
 
-    public ProductService(ProductRepository productRepository, MemberRepository memberRepository, S3Client s3Client) {
+    public ProductService(ProductRepository productRepository, MemberRepository memberRepository, S3Client s3Client, @Qualifier("stockInventory") RedisTemplate<String, String> redisTemplate) {
         this.productRepository = productRepository;
         this.memberRepository = memberRepository;
         this.s3Client = s3Client;
+        this.redisTemplate = redisTemplate;
     }
 
     public Long save(ProductCreateDto productCreateDto) {
         String email = SecurityContextHolder.getContext().getAuthentication().getPrincipal().toString();
-        Member member = memberRepository.findByEmail(email).orElseThrow(()->new EntityNotFoundException("member is not found"));
+        Member member = memberRepository.findByEmail(email).orElseThrow(() -> new EntityNotFoundException("member is not found"));
         Product product = productRepository.save(productCreateDto.toEntity(member));
-        if(productCreateDto.getProductImage() != null){
-            String fileName = "product-"+product.getId()+"-"+productCreateDto.getProductImage().getOriginalFilename();
+        if (productCreateDto.getProductImage() != null) {
+            String fileName = "product-" + product.getId() + "-" + productCreateDto.getProductImage().getOriginalFilename();
             PutObjectRequest request = PutObjectRequest.builder()
                     .bucket(bucket)
                     .key(fileName)
@@ -61,26 +66,30 @@ public class ProductService {
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-            String imgUrl = s3Client.utilities().getUrl(a->a.bucket(bucket).key(fileName)).toExternalForm();
+            String imgUrl = s3Client.utilities().getUrl(a -> a.bucket(bucket).key(fileName)).toExternalForm();
             product.updateProfileImageUrl(imgUrl);
         }
+
+//        동시성문제 해결을 위해 상품등록시 redis에 재고 세팅
+        redisTemplate.opsForValue().set(String.valueOf(product.getId()), String.valueOf(product.getStockQuantity()));
+
         return product.getId();
     }
 
     @Transactional(readOnly = true)
-    public Page<ProductResDto> findAll(Pageable pageable, ProductSearchDto searchDto){
+    public Page<ProductResDto> findAll(Pageable pageable, ProductSearchDto searchDto) {
         Specification<Product> specification = new Specification<Product>() {
             @Override
             public Predicate toPredicate(Root<Product> root, CriteriaQuery<?> query, CriteriaBuilder criteriaBuilder) {
                 List<Predicate> predicateList = new ArrayList<>();
-                if(searchDto.getProductName() != null){
-                    predicateList.add(criteriaBuilder.like(root.get("name"), "%"+searchDto.getProductName()+"%"));
+                if (searchDto.getProductName() != null) {
+                    predicateList.add(criteriaBuilder.like(root.get("name"), "%" + searchDto.getProductName() + "%"));
                 }
-                if(searchDto.getCategory() != null){
+                if (searchDto.getCategory() != null) {
                     predicateList.add(criteriaBuilder.equal(root.get("category"), searchDto.getCategory()));
                 }
                 Predicate[] predicateArr = new Predicate[predicateList.size()];
-                for (int i=0; i<predicateArr.length; i++){
+                for (int i = 0; i < predicateArr.length; i++) {
                     predicateArr[i] = predicateList.get(i);
                 }
                 Predicate predicate = criteriaBuilder.and(predicateArr);
@@ -88,13 +97,54 @@ public class ProductService {
             }
         };
         Page<Product> postList = productRepository.findAll(specification, pageable);
-        return postList.map(p->ProductResDto.fromEntity(p));
+        return postList.map(p -> ProductResDto.fromEntity(p));
     }
 
     @Transactional(readOnly = true)
-    public ProductResDto findById(Long id){
-        Product product = productRepository.findById(id).orElseThrow(()->new EntityNotFoundException("상품정보없음"));
+    public ProductResDto findById(Long id) {
+        Product product = productRepository.findById(id).orElseThrow(() -> new EntityNotFoundException("상품정보없음"));
         return ProductResDto.fromEntity(product);
+    }
+
+    public void update(Long id, ProductUpdateDto dto) {
+        Product product = productRepository.findById(id).orElseThrow(() -> new EntityNotFoundException("상품정보없음"));
+        product.updateProduct(dto);
+
+//            이미지를 수정하거나 추가하고자 하는 경우 : 삭제 후 추가
+        if (dto.getProductImage() != null) {
+            if(product.getImagePath() != null) {  // 이미 등록한 이미지가 있는경우만 삭제
+                String imgUrl = product.getImagePath();
+                String fileName = imgUrl.substring(imgUrl.lastIndexOf("/") + 1);
+//              기존 이미지를 파일명으로 삭제
+//              deleteObject: s3에서 제공해주는 파일객체 삭제해주는 메서드
+                s3Client.deleteObject(a -> a.bucket(bucket).key(fileName));
+            }
+
+//            기존 이미지 삭제 후, 신규 이미지를 등록
+            String newFileName = "product-" + product.getId() + "-" + dto.getProductImage().getOriginalFilename();
+            PutObjectRequest request = PutObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(newFileName)
+                    .contentType(dto.getProductImage().getContentType())
+                    .build();
+            try {
+                s3Client.putObject(request, RequestBody.fromBytes(dto.getProductImage().getBytes()));
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            String newImgUrl = s3Client.utilities().getUrl(a -> a.bucket(bucket).key(newFileName)).toExternalForm();
+            product.updateProfileImageUrl(newImgUrl);
+        } else {
+//            이미지를 삭제하고자 하는 경우
+            if(product.getImagePath() != null) {
+                String imgUrl = product.getImagePath();
+                String fileName = imgUrl.substring(imgUrl.lastIndexOf("/") + 1);
+                s3Client.deleteObject(a -> a.bucket(bucket).key(fileName));
+            }
+
+        }
+
+
     }
 
 

@@ -31,19 +31,8 @@ public class RedisConfig {
         configuration.setHostName(host);
         configuration.setPort(port);  // 포트번호 yml에 관리
         configuration.setDatabase(0);  // 몇번 db  쓸껀지. 최근에는 0번만 쓰는게 트렌드고 여러개의 테이블이 필요할 경우 docker에 redis 여러개 띄우는게 트렌드
-        return new LettuceConnectionFactory();
+        return new LettuceConnectionFactory(configuration);
     }
-
-    @Bean
-    @Qualifier("stockInventory")
-    public RedisConnectionFactory stockConnectionFactory() {
-        RedisStandaloneConfiguration configuration = new RedisStandaloneConfiguration();
-        configuration.setHostName(host);
-        configuration.setPort(port);
-        configuration.setDatabase(1);
-        return new LettuceConnectionFactory();
-    }
-
 
     //    템플릿 Bean 객체 : value에 어떤 자료구조로 넣을지 자료구조 설계. controller같은데에서 쓸 떄 이 빈을 주입받아서 쓰면 됨
     @Bean
@@ -56,6 +45,16 @@ public class RedisConfig {
         redisTemplate.setValueSerializer(new StringRedisSerializer());
         redisTemplate.setConnectionFactory(redisConnectionFactory);
         return redisTemplate;
+    }
+
+    @Bean
+    @Qualifier("stockInventory")
+    public RedisConnectionFactory stockConnectionFactory() {
+        RedisStandaloneConfiguration configuration = new RedisStandaloneConfiguration();
+        configuration.setHostName(host);
+        configuration.setPort(port);
+        configuration.setDatabase(1);
+        return new LettuceConnectionFactory(configuration);
     }
 
     @Bean
@@ -77,8 +76,8 @@ public class RedisConfig {
 //        redis pub/sub기능은 db에 값을 저장하는 기능이 아니므로, 특정 db에 의존적이지 않음. - db세팅 필요없음
         configuration.setHostName(host);
         configuration.setPort(port);
-        configuration.setDatabase(1);
-        return new LettuceConnectionFactory();
+        configuration.setDatabase(2);
+        return new LettuceConnectionFactory(configuration);
     }
 
     @Bean

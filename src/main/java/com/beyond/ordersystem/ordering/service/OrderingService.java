@@ -54,6 +54,10 @@ public class OrderingService {
         Ordering ordering = Ordering.builder()
                 .member(member)
                 .build();
+
+        orderingRepository.save(ordering);
+
+
         for (OrderCreateDto dto : orderCreateDtoList) {
 //            동시성제어방법2. select for update 를 통한 락 설정 이후 조회
 //            Product product = productRepository.findByIdForUpdate(dto.getProductId()).orElseThrow(() -> new EntityNotFoundException("entity is not found"));
@@ -80,7 +84,8 @@ public class OrderingService {
                     .product(product)
                     .quantity(dto.getProductCount())
                     .build();
-            ordering.getOrderDetailList().add(orderDetail);
+//            ordering.getOrderDetailList().add(orderDetail);  // 캐스캐이딩코드
+            orderDetailRepository.save(orderDetail);
 
 //            rdb 동기화를 위한 작업1 : 스케쥴러 활용..이것도 정확하지는 않음..
 //            rdb 동기화를 위한 작업2 : rabbitmq에 rdb 재고감소 메시지 발행
